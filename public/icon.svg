@@ -1,0 +1,86 @@
+
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background subtle gradient -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0e1726"/>
+      <stop offset="50%" stop-color="#090e17"/>
+      <stop offset="100%" stop-color="#05080e"/>
+    </linearGradient>
+
+    <!-- Border highlight gradient -->
+    <linearGradient id="borderGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6"/>
+      <stop offset="40%" stop-color="#0284c7" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.8"/>
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="cyanGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Pixel 1: Top-Left (Graphite Charcoal) -->
+    <linearGradient id="px1" x1="140" y1="140" x2="240" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+
+    <!-- Pixel 2: Top-Right (Electric Cyan) -->
+    <linearGradient id="px2" x1="264" y1="140" x2="364" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <!-- Pixel 3: Bottom-Left (Cyan Neon Light) -->
+    <linearGradient id="px3" x1="140" y1="264" x2="240" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f5d4"/>
+      <stop offset="100%" stop-color="#00b4d8"/>
+    </linearGradient>
+
+    <!-- Pixel 4: Bottom-Right (Deep Sapphire) -->
+    <linearGradient id="px4" x1="264" y1="264" x2="364" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+
+    <radialGradient id="centerLight" cx="256" cy="256" r="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f5d4" stop-opacity="0.18"/>
+      <stop offset="70%" stop-color="#0284c7" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="108" stroke="url(#borderGrad)" stroke-width="6"/>
+
+  <!-- Radial ambient glow behind pixel logo -->
+  <circle cx="256" cy="256" r="180" fill="url(#centerLight)"/>
+
+  <!-- Brand Pixel Grid (2x2 Matrix) -->
+  <g filter="url(#cyanGlow)">
+    <!-- Top-Left Square (Stylized with subtle P cutout) -->
+    <rect x="136" y="136" width="108" height="108" rx="20" fill="url(#px1)"/>
+    <rect x="136" y="136" width="108" height="108" rx="20" stroke="#475569" stroke-width="2"/>
+    <!-- Subtle embossed P accent -->
+    <path d="M172 168 H198 C207 168 214 174 214 182 C214 190 207 196 198 196 H184 V212 H172 V168 Z M184 178 V186 H196 C199 178 199 186 196 186 Z" fill="#94a3b8" fill-opacity="0.75"/>
+
+    <!-- Top-Right Square -->
+    <rect x="264" y="136" width="108" height="108" rx="20" fill="url(#px2)"/>
+    <rect x="264" y="136" width="108" height="108" rx="20" stroke="#7dd3fc" stroke-width="2" stroke-opacity="0.7"/>
+
+    <!-- Bottom-Left Square -->
+    <rect x="136" y="264" width="108" height="108" rx="20" fill="url(#px3)"/>
+    <rect x="136" y="264" width="108" height="108" rx="20" stroke="#67e8f9" stroke-width="2" stroke-opacity="0.8"/>
+
+    <!-- Bottom-Right Square -->
+    <rect x="264" y="264" width="108" height="108" rx="20" fill="url(#px4)"/>
+    <rect x="264" y="264" width="108" height="108" rx="20" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.6"/>
+  </g>
+
+  <!-- Central Precision Grid Crosshair / Signage Align dot -->
+  <circle cx="254" cy="254" r="5" fill="#ffffff" opacity="0.9"/>
+  <circle cx="254" cy="254" r="9" stroke="#38bdf8" stroke-width="1.5" opacity="0.6"/>
+</svg>

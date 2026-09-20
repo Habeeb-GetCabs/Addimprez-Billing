@@ -1,4 +1,4 @@
-import { Search, WifiOff, FilePlus, Settings } from 'lucide-react';
+import { Search, FilePlus, Settings } from 'lucide-react';
 import { BusinessSettings } from '../types';
 
 interface AndroidHeaderProps {
@@ -17,35 +17,22 @@ export function AndroidHeader({
   onOpenSettings
 }: AndroidHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-md select-none">
-      {/* Top Simulated Android Status Bar */}
-      <div className="flex items-center justify-between px-4 pt-1.5 pb-0.5 text-[11px] font-medium text-slate-400 tracking-wider">
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-slate-200">10:45</span>
-          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            OFFLINE READY
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>VoLTE</span>
-          <span title="Offline Mode Active"><WifiOff size={11} className="text-amber-400" /></span>
-          <span>85%</span>
-        </div>
-      </div>
-
+    <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-md select-none border-b border-slate-800">
       {/* Main App Bar */}
       <div className="flex items-center justify-between px-4 py-2.5">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white text-base shadow-sm shrink-0 border border-white/10">
-            {settings.businessName ? settings.businessName.charAt(0).toUpperCase() : 'L'}
-          </div>
+          <img
+            src="./icon.png"
+            alt={settings.businessName || 'Pixel Graphic'}
+            className="w-9 h-9 rounded-xl object-contain bg-slate-950 p-0.5 border border-white/10 shadow-sm shrink-0"
+            referrerPolicy="no-referrer"
+          />
           <div className="truncate">
             <h1 className="text-sm font-bold text-slate-100 leading-tight truncate">
-              {settings.businessName || 'Lividus Print & Sign'}
+              {settings.businessName || 'Pixel Graphic'}
             </h1>
             <p className="text-[11px] text-slate-400 truncate">
-              {settings.tagline || 'Printing & Advertising Solutions'}
+              {settings.tagline || 'Billing & Estimation System'}
             </p>
           </div>
         </div>
