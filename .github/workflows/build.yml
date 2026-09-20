@@ -7,7 +7,6 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-# Grant write permissions for artifact uploading and releases
 permissions:
   contents: write
 
@@ -20,18 +19,19 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22 (LTS)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Accept Android SDK Licenses
         run: |
@@ -39,7 +39,7 @@ jobs:
 
       - name: Install NPM Dependencies
         run: |
-          npm ci || npm install
+          npm install --legacy-peer-deps
 
       - name: Build Web Application
         run: |
@@ -49,56 +49,51 @@ jobs:
         run: |
           npx cap sync android
 
-      - name: Make Gradle Wrapper Executable
+      - name: Make Gradle Executable
         run: |
           chmod +x ./android/gradlew
 
-      - name: Assemble Debug APK with Gradle
+      - name: Build Android Debug APK
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Package Output APK
+      - name: Prepare APK Output
         run: |
           mkdir -p ./build-output
-          cp ./android/app/build/outputs/apk/debug/app-debug.apk ./build-output/PixelGraphic-Billing-v1.0.apk
-          echo "APK successfully created at ./build-output/PixelGraphic-Billing-v1.0.apk"
-          ls -lh ./build-output/
+          cp ./android/app/build/outputs/apk/debug/app-debug.apk ./build-output/BillingApp-release.apk
+          echo "APK generated successfully:"
+          ls -lh ./build-output/BillingApp-release.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixelGraphic-Billing-v1.0-APK
-          path: ./build-output/PixelGraphic-Billing-v1.0.apk
+          name: Android-Billing-App-APK
+          path: ./build-output/BillingApp-release.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create Release on Tag
+      - name: Create Release with APK (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ./build-output/PixelGraphic-Billing-v1.0.apk
+          files: ./build-output/BillingApp-release.apk
           name: Release ${{ github.ref_name }}
           body: |
             ### 📱 Android APK Ready for Download
-            Download `PixelGraphic-Billing-v1.0.apk` directly to your Android device to install and use the app offline.
+            Download `BillingApp-release.apk` directly to your Android device to install and use offline.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Write Job Summary
+      - name: Build Summary
         run: |
           echo "### 🚀 Android APK Build Succeeded!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Your Android APK has been built and is ready for download:" >> $GITHUB_STEP_SUMMARY
-          echo "- **App Name:** Pixel Graphic Billing" >> $GITHUB_STEP_SUMMARY
-          echo "- **Package ID:** \`com.pixelgraphic.billing\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Output File:** \`PixelGraphic-Billing-v1.0.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "Your Android APK has been built successfully and is ready for download:" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Name:** \`BillingApp-release.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Ready for Android install" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### 📲 How to Download & Install:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Scroll down or go to the **Summary** tab of this GitHub Actions run." >> $GITHUB_STEP_SUMMARY
-          echo "2. In the **Artifacts** section, click **PixelGraphic-Billing-v1.0-APK** to download." >> $GITHUB_STEP_SUMMARY
-          echo "3. Extract the downloaded zip file on your computer or phone." >> $GITHUB_STEP_SUMMARY
-          echo "4. Transfer or open \`PixelGraphic-Billing-v1.0.apk\` on your Android device and tap **Install**." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### 💻 Web & PC Browser Usage:" >> $GITHUB_STEP_SUMMARY
-          echo "You can also run this exact app in any computer or tablet web browser. All catalog items, calculations, customer records, and PDF exports work seamlessly offline and online across both Android and Web!" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📲 How to Download from GitHub:" >> $GITHUB_STEP_SUMMARY
+          echo "1. On this Actions run page, scroll down to the **Artifacts** section at the bottom." >> $GITHUB_STEP_SUMMARY
+          echo "2. Click **Android-Billing-App-APK** to download the zip file containing your APK." >> $GITHUB_STEP_SUMMARY
+          echo "3. Open the downloaded zip and install \`BillingApp-release.apk\` on your Android device." >> $GITHUB_STEP_SUMMARY
