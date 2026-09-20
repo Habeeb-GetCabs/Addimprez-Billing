@@ -33,7 +33,12 @@ export function SettingsAndBackup({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveSettings(formData);
+    onSaveSettings({
+      ...formData,
+      businessName: 'addimprez',
+      tagline: 'create the dreams...',
+      logoUrl: '/assets/addimprez-logo.png'
+    });
     setSaveSuccessMessage(true);
     setTimeout(() => setSaveSuccessMessage(false), 3000);
   };
@@ -132,35 +137,72 @@ export function SettingsAndBackup({
       <form onSubmit={handleSave} className="space-y-4">
         {/* Tab 1: Business Identity */}
         {activeTab === 'BIZ' && (
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
-              Business Profile & Letterhead
-            </h3>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Business / Agency Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.businessName}
-                onChange={e => setFormData({ ...formData, businessName: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                Official Business Branding
+              </h3>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+                🔒 Official Identity Locked
+              </span>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Tagline / Subtitle
-              </label>
-              <input
-                type="text"
-                value={formData.tagline || ''}
-                onChange={e => setFormData({ ...formData, tagline: e.target.value })}
-                placeholder="PRINTING • SIGNAGE • ADVERTISING"
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+            {/* Official Branding Visual Card */}
+            <div className="bg-slate-900 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-slate-800">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/assets/addimprez-logo-white.svg"
+                  alt="addimprez - create the dreams..."
+                  className="h-12 sm:h-14 w-auto object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = '/assets/addimprez-logo.png';
+                  }}
+                />
+              </div>
+              <div className="text-right text-[11px] text-slate-400">
+                <p className="font-bold text-slate-200">addimprez</p>
+                <p className="text-[#00a2e8] italic">create the dreams...</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Applied to all Quotations & Bills</p>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-start gap-2">
+              <span className="text-slate-400 font-bold select-none">ℹ️</span>
+              <p>
+                The official company logo, brand name (<strong className="text-slate-800">addimprez</strong>), and tagline are permanently locked per official brand guidelines and will be automatically applied to all quotation and bill headers, PDFs, previews, and images.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Brand Name (Locked)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value="addimprez"
+                  className="w-full bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Tagline (Locked)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value="create the dreams..."
+                  className="w-full bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs italic font-medium text-slate-700 cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-2">
+              <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                Editable Shop Contact & Address
+              </h4>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

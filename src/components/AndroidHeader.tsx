@@ -22,17 +22,17 @@ export function AndroidHeader({
       <div className="flex items-center justify-between px-4 py-2.5">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <img
-            src="./icon.png"
-            alt={settings.businessName || 'Pixel Graphic'}
-            className="w-9 h-9 rounded-xl object-contain bg-slate-950 p-0.5 border border-white/10 shadow-sm shrink-0"
+            src="/assets/addimprez-logo.png"
+            alt="addimprez"
+            className="w-10 h-7 rounded-md object-contain bg-slate-950 p-0.5 border border-white/10 shadow-sm shrink-0"
             referrerPolicy="no-referrer"
           />
           <div className="truncate">
             <h1 className="text-sm font-bold text-slate-100 leading-tight truncate">
-              {settings.businessName || 'Pixel Graphic'}
+              {settings.businessName || 'addimprez'}
             </h1>
             <p className="text-[11px] text-slate-400 truncate">
-              {settings.tagline || 'Billing & Estimation System'}
+              {settings.tagline || 'create the dreams...'}
             </p>
           </div>
         </div>

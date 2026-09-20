@@ -35,14 +35,14 @@ export const LetterpadBillView: React.FC<LetterpadBillViewProps> = ({
 }) => {
   const isInvoice = doc.documentType === 'INVOICE';
 
-  // Permanent Locked Pixel Graphic Brand Identity
-  const brandName = 'Pixel Graphic';
+  // Permanent Locked addimprez Brand Identity
+  const brandName = 'addimprez';
   const tagline = 'create the dreams...';
   const phoneNumbers = '95 6666 4663, 95 6632 9666';
-  const emailAddress = 'pixelgraphic.cbe@gmail.com';
+  const emailAddress = 'addimprez.cbe@gmail.com';
   const addressLine1 = '286, D.B Road, R.S Puram,';
   const addressLine2 = 'Coimbatore - 641 002.';
-  const websiteUrl = 'www.pixelgraphic.in';
+  const websiteUrl = 'www.addimprez.com';
 
   // Format total as 1,80,500/-
   const formattedGrandTotal = `${formatIndianNumber(doc.grandTotal)}/-`;
@@ -69,20 +69,20 @@ export const LetterpadBillView: React.FC<LetterpadBillViewProps> = ({
       style={{ minHeight: '1080px' }}
     >
       {/* ===================== 1. DIAGONAL WATERMARK ===================== */}
-      {/* Requirement #12: Diagonal cross-over "PIXEL GRAPHIC" watermark embedded behind content */}
+      {/* Official addimprez watermark embedded behind content */}
       <div 
         aria-hidden="true" 
         className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center select-none overflow-hidden"
       >
         <div className="transform -rotate-[32deg] text-slate-900/[0.04] print:text-slate-900/[0.055] font-black text-6xl sm:text-7xl md:text-8xl tracking-[0.25em] uppercase whitespace-nowrap">
-          PIXEL GRAPHIC
+          ADDIMPREZ
         </div>
       </div>
 
       {/* Main Letterpad Content */}
       <div className="relative z-10">
         {/* ===================== 2. TOP HEADER ===================== */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
           {/* Left Side: Contact Information with Cyan Outline Icons & Bracket */}
           <div className="space-y-1.5 text-xs sm:text-[13px] text-slate-800 font-bold max-w-sm">
             {/* Phone */}
@@ -116,23 +116,14 @@ export const LetterpadBillView: React.FC<LetterpadBillViewProps> = ({
             </div>
           </div>
 
-          {/* Right Side: Pixel Graphic Brand & 4-Square Pixel Logo Mark */}
-          <div className="text-right sm:self-start">
-            <div className="inline-flex items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#2d2825]">
-                {brandName}
-              </h1>
-              {/* Exact 4-Square Pixel Logo Mark: Top row [Cyan, Dark], Bottom row [Cyan, Cyan] */}
-              <div className="grid grid-cols-2 gap-1 w-6 h-6 shrink-0 mt-0.5">
-                <div className="w-2.5 h-2.5 bg-[#00a2e8] rounded-[2px]" />
-                <div className="w-2.5 h-2.5 bg-[#2d2825] rounded-[2px]" />
-                <div className="w-2.5 h-2.5 bg-[#00a2e8] rounded-[2px]" />
-                <div className="w-2.5 h-2.5 bg-[#00a2e8] rounded-[2px]" />
-              </div>
-            </div>
-            <p className="text-xs sm:text-sm font-semibold text-[#00a2e8] tracking-widest mt-0.5 font-serif italic">
-              {tagline}
-            </p>
+          {/* Right Side: Official addimprez Brand & Mosaic Emblem */}
+          <div className="text-right sm:self-start flex flex-col items-end shrink-0">
+            <img 
+              src="/assets/addimprez-logo.png" 
+              srcSet="/assets/addimprez-logo.png 1x, /assets/addimprez-logo@2x.png 2x"
+              alt="addimprez - create the dreams..." 
+              className="h-16 sm:h-20 w-auto max-w-[280px] sm:max-w-[340px] object-contain select-none"
+            />
           </div>
         </div>
 

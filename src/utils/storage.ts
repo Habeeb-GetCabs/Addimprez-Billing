@@ -370,11 +370,24 @@ export function deleteDocument(docId: string): BillDocument[] {
 // --- Business Settings ---
 export function getBusinessSettings(): BusinessSettings {
   const settings = getStored<BusinessSettings>(STORAGE_KEYS.SETTINGS, INITIAL_BUSINESS_SETTINGS);
-  return { ...INITIAL_BUSINESS_SETTINGS, ...settings };
+  return { 
+    ...INITIAL_BUSINESS_SETTINGS, 
+    ...settings,
+    // Official company branding is permanently fixed per user directive:
+    businessName: 'addimprez',
+    tagline: 'create the dreams...',
+    logoUrl: '/assets/addimprez-logo.png'
+  };
 }
 
 export function saveBusinessSettings(settings: BusinessSettings): void {
-  setStored(STORAGE_KEYS.SETTINGS, settings);
+  const lockedSettings: BusinessSettings = {
+    ...settings,
+    businessName: 'addimprez',
+    tagline: 'create the dreams...',
+    logoUrl: '/assets/addimprez-logo.png'
+  };
+  setStored(STORAGE_KEYS.SETTINGS, lockedSettings);
 }
 
 export function generateNextNumber(type: 'QUOTATION' | 'INVOICE'): { documentNumber: string; updatedSettings: BusinessSettings } {

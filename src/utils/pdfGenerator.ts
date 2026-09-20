@@ -6,6 +6,7 @@ import html2canvas from 'html2canvas';
 import { BillDocument, BusinessSettings } from '../types';
 import { formatLetterpadDate, formatIndianNumber } from '../components/LetterpadBillView';
 import { getShareableBillUrl } from './shareableLink';
+import { ADDIMPREZ_LOGO_BASE64 } from '../assets/brandingData';
 
 /**
  * Generates an A4 Letterpad PDF matching Pixel Graphic branding and design reference.
@@ -45,21 +46,21 @@ export function generateBillPdf(doc: BillDocument, settings: BusinessSettings): 
   const headerPillColor: [number, number, number] = [52, 46, 43];
   const borderColor: [number, number, number] = [203, 213, 225];
 
-  // Locked Pixel Graphic Brand Details
-  const brandName = 'Pixel Graphic';
+  // Locked addimprez Brand Details
+  const brandName = 'addimprez';
   const tagline = 'create the dreams...';
   const phoneNumbers = '95 6666 4663, 95 6632 9666';
-  const emailAddress = 'pixelgraphic.cbe@gmail.com';
+  const emailAddress = 'addimprez.cbe@gmail.com';
   const addressLine1 = '286, D.B Road, R.S Puram,';
   const addressLine2 = 'Coimbatore - 641 002.';
 
   // ===================== 0. DIAGONAL WATERMARK =====================
-  // Requirement #12: Diagonal cross-over "PIXEL GRAPHIC" watermark embedded across the PDF
+  // Official addimprez watermark embedded across the PDF
   pdf.saveGraphicsState();
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(48);
+  pdf.setFontSize(46);
   pdf.setTextColor(236, 240, 246); // subtle, light watermark behind main content
-  pdf.text('PIXEL GRAPHIC', pageWidth / 2, pageHeight / 2 + 5, {
+  pdf.text('ADDIMPREZ', pageWidth / 2, pageHeight / 2 + 5, {
     align: 'center',
     angle: 32,
   });
@@ -94,37 +95,26 @@ export function generateBillPdf(doc: BillDocument, settings: BusinessSettings): 
   pdf.setFontSize(14);
   pdf.text('}', margin + 45, y + 15);
 
-  // --- Right: Pixel Graphic Brand & 4-Square Logo Mark ---
+  // --- Right: Official addimprez Logo & Mosaic Pebble Emblem ---
   const rightEdge = pageWidth - margin;
-  pdf.setTextColor(darkBrandColor[0], darkBrandColor[1], darkBrandColor[2]);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(20);
-  pdf.text(brandName, rightEdge - 11, y + 6.5, { align: 'right' });
+  const logoWidth = 58;
+  const logoHeight = 15.4;
+  const logoX = rightEdge - logoWidth;
+  const logoY = y;
 
-  // 4-Square Pixel Logo Mark (Top: Cyan, Dark; Bottom: Cyan, Cyan)
-  const logoBoxSize = 3.6;
-  const logoGap = 0.9;
-  const logoStartX = rightEdge - 8.5;
-  const logoStartY = y + 0.5;
-
-  // Top-left: Cyan
-  pdf.setFillColor(cyanColor[0], cyanColor[1], cyanColor[2]);
-  pdf.roundedRect(logoStartX, logoStartY, logoBoxSize, logoBoxSize, 0.4, 0.4, 'F');
-  // Top-right: Dark
-  pdf.setFillColor(darkBrandColor[0], darkBrandColor[1], darkBrandColor[2]);
-  pdf.roundedRect(logoStartX + logoBoxSize + logoGap, logoStartY, logoBoxSize, logoBoxSize, 0.4, 0.4, 'F');
-  // Bottom-left: Cyan
-  pdf.setFillColor(cyanColor[0], cyanColor[1], cyanColor[2]);
-  pdf.roundedRect(logoStartX, logoStartY + logoBoxSize + logoGap, logoBoxSize, logoBoxSize, 0.4, 0.4, 'F');
-  // Bottom-right: Cyan
-  pdf.setFillColor(cyanColor[0], cyanColor[1], cyanColor[2]);
-  pdf.roundedRect(logoStartX + logoBoxSize + logoGap, logoStartY + logoBoxSize + logoGap, logoBoxSize, logoBoxSize, 0.4, 0.4, 'F');
-
-  // Tagline below brand
-  pdf.setTextColor(cyanColor[0], cyanColor[1], cyanColor[2]);
-  pdf.setFont('times', 'italic');
-  pdf.setFontSize(9.5);
-  pdf.text(tagline, rightEdge, y + 12.5, { align: 'right' });
+  try {
+    pdf.addImage(ADDIMPREZ_LOGO_BASE64, 'PNG', logoX, logoY, logoWidth, logoHeight);
+  } catch (err) {
+    console.warn('Fallback drawing addimprez in PDF', err);
+    pdf.setTextColor(darkBrandColor[0], darkBrandColor[1], darkBrandColor[2]);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.text(brandName, rightEdge, y + 6.5, { align: 'right' });
+    pdf.setTextColor(cyanColor[0], cyanColor[1], cyanColor[2]);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8.5);
+    pdf.text(tagline, rightEdge, y + 12.5, { align: 'right' });
+  }
 
   y += 19;
 
@@ -674,7 +664,7 @@ export function buildWhatsAppMessage(doc: BillDocument, settings: BusinessSettin
   const shareableLink = getShareableBillUrl(doc);
 
   const lines = [
-    `*${isInvoice ? 'TAX INVOICE' : 'QUOTATION'} - PIXEL GRAPHIC*`,
+    `*${isInvoice ? 'TAX INVOICE' : 'QUOTATION'} - ADDIMPREZ*`,
     `No: ${doc.documentNumber}`,
     `Date: ${formatLetterpadDate(doc.date)}`,
     `Customer: ${doc.customerName || 'Valued Client'}`,
@@ -687,10 +677,10 @@ export function buildWhatsAppMessage(doc: BillDocument, settings: BusinessSettin
     `View & Download Document:`,
     shareableLink,
     `--------------------------------`,
-    `*Pixel Graphic*`,
-    `286, D.B Road, R.S Puram, Coimbatore`,
+    `*addimprez* - create the dreams...`,
+    `286, D.B Road, R.S Puram, Coimbatore - 641 002`,
     `Phone: 95 6666 4663, 95 6632 9666`,
-    `Email: pixelgraphic.cbe@gmail.com`
+    `Email: addimprez.cbe@gmail.com`
   ];
 
   return lines.join('\n');

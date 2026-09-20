@@ -1,6 +1,6 @@
 {
   "name": "Lividus Print & Sign Billing",
-  "description": "Android billing, quotation, and invoice management application for printing, signage, designing, and advertising businesses with offline pricing database.",
+  "description": "Android billing, quotation, and invoice management application with official addimprez branding, offline pricing database, and letterhead exports.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

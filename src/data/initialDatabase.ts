@@ -934,16 +934,16 @@ export const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export const INITIAL_BUSINESS_SETTINGS: BusinessSettings = {
-  businessName: 'Pixel Graphic',
+  businessName: 'addimprez',
   tagline: 'create the dreams...',
-  logoUrl: '',
+  logoUrl: '/assets/addimprez-logo.png',
   address: '286, D.B Road, R.S Puram, Coimbatore - 641 002.',
   phone: '95 6666 4663, 95 6632 9666',
-  email: 'pixelgraphic.cbe@gmail.com',
+  email: 'addimprez.cbe@gmail.com',
   gstNumber: '33AABCP1234F1Z0',
   panNumber: 'AABCP1234F',
-  quotationPrefix: 'PG-QT-',
-  invoicePrefix: 'PG-INV-',
+  quotationPrefix: 'ADD-QT-',
+  invoicePrefix: 'ADD-INV-',
   nextQuotationNumber: 101,
   nextInvoiceNumber: 201,
   defaultTaxPercentage: 18,
