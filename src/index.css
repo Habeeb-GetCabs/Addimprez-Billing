@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+@media print {
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app shell, headers, modals overlays when printing letterpad */
+  nav, header, .no-print, [role="dialog"] > div:first-child:not(#letterpad-bill-container) {
+    display: none !important;
+  }
+
+  #letterpad-bill-container {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 10mm !important;
+    margin: 0 !important;
+  }
+}
