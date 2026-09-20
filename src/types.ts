@@ -1,4 +1,4 @@
-export type CalculationType = 'AREA' | 'QUANTITY';
+export type CalculationType = 'AREA' | 'QUANTITY' | 'PACKAGE';
 
 export interface Product {
   id: string;
@@ -6,11 +6,15 @@ export interface Product {
   categoryName: string;
   name: string;
   calculationType: CalculationType;
-  defaultUnit: string; // e.g. 'Sq.ft', 'Pcs', 'Sets', 'Books', 'Pads', 'Pages', 'Pack'
+  defaultUnit: string; // e.g. 'Sq.ft', 'Pcs', 'Sets', 'Books', 'Pads', 'Pages', 'Pack', 'Package'
   minPrice: number;
   maxPrice: number;
   defaultRate: number;
   description?: string;
+  notes?: string;
+  packageSize?: number; // e.g. 1000 flyers per package
+  packageUnit?: string; // e.g. 'Flyers', 'Cards', 'Items'
+  hsnCode?: string;
 }
 
 export interface Category {
@@ -36,6 +40,9 @@ export interface BillingItem {
   maxRate?: number;
   amount: number;
   notes?: string;
+  packageSize?: number;
+  packageUnit?: string;
+  hsnCode?: string;
 }
 
 export type AdditionalChargeType = 
@@ -78,6 +85,7 @@ export interface Customer {
 }
 
 export type DocumentStatus = 'Draft' | 'Sent' | 'Approved' | 'Paid' | 'Partial' | 'Converted' | 'Cancelled';
+export type QuotationStatus = 'PENDING' | 'SENT' | 'APPROVED' | 'DECLINED';
 
 export interface BillDocument {
   id: string;
@@ -117,6 +125,10 @@ export interface BillDocument {
   // Metadata
   termsAndConditions: string[];
   status: DocumentStatus;
+  quotationStatus?: QuotationStatus;
+  isPaid?: boolean;
+  paidAt?: string;
+  showcaseImage?: string; // Base64 or URL for quotation/bill showcase image
   convertedFromQuotationId?: string;
   convertedToInvoiceId?: string;
   notes?: string;

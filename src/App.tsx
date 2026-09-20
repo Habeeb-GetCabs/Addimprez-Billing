@@ -269,6 +269,7 @@ export default function App() {
               setActiveTab('dashboard');
             }}
             onAddNewCustomer={handleSaveCustomer}
+            onAddNewProduct={handleSaveProduct}
           />
         )}
 
@@ -279,6 +280,8 @@ export default function App() {
             onSelectDocument={doc => setViewingDoc(doc)}
             onNewDocument={handleStartNewBilling}
             onDeleteDocument={handleDeleteDocument}
+            onUpdateDocument={handleSaveDocument}
+            onConvertToInvoice={handleConvertToInvoice}
           />
         )}
 

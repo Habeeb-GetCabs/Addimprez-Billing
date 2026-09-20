@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   FileText, 
   Receipt, 
@@ -8,13 +8,17 @@ import {
   Eye, 
   ArrowLeft, 
   Calculator, 
-  DollarSign, 
+  Package as PackageIcon,
+  Check, 
+  AlertTriangle, 
+  Users, 
+  ChevronDown,
+  Search,
+  Image as ImageIcon,
+  X,
+  Upload,
   Sparkles,
-  Info,
-  Check,
-  AlertTriangle,
-  Users,
-  ChevronDown
+  CheckCircle2
 } from 'lucide-react';
 import { 
   BillDocument, 
@@ -34,7 +38,7 @@ import {
   calculateDocumentSummary, 
   formatCurrency 
 } from '../utils/calculations';
-import { generateNextNumber } from '../utils/storage';
+import { generateNextNumber, saveProduct } from '../utils/storage';
 
 interface BillingScreenProps {
   initialDocument?: BillDocument | null;
@@ -47,6 +51,7 @@ interface BillingScreenProps {
   onPreviewDocument: (doc: BillDocument) => void;
   onCancel: () => void;
   onAddNewCustomer: (customer: Customer) => void;
+  onAddNewProduct?: (product: Product) => void;
 }
 
 const PRESET_ADDITIONAL_CHARGES: { type: AdditionalChargeType; defaultLabel: string }[] = [
@@ -67,7 +72,8 @@ export function BillingScreen({
   onSaveDocument,
   onPreviewDocument,
   onCancel,
-  onAddNewCustomer
+  onAddNewCustomer,
+  onAddNewProduct
 }: BillingScreenProps) {
   // Document Type: Quotation vs Invoice
   const [docType, setDocType] = useState<'QUOTATION' | 'INVOICE'>(
@@ -98,23 +104,16 @@ export function BillingScreen({
   const [customerMobile, setCustomerMobile] = useState<string>(initialDocument?.customerMobile || '');
   const [customerAddress, setCustomerAddress] = useState<string>(initialDocument?.customerAddress || '');
   const [customerGst, setCustomerGst] = useState<string>(initialDocument?.customerGst || '');
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
-  // Line items state
-  const [items, setItems] = useState<BillingItem[]>(() => {
-    if (initialDocument?.items && initialDocument.items.length > 0) {
-      return initialDocument.items;
-    }
-    // Default initial blank item
-    return [];
-  });
-
-  // Active Line Item Drawer / Form for adding or editing
+  // Line Items state
+  const [items, setItems] = useState<BillingItem[]>(initialDocument?.items || []);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  // Draft item being added/edited
+  // Product Search & Add Item state
+  const [productSearchQuery, setProductSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categories[0]?.id || '');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [itemCalculationType, setItemCalculationType] = useState<CalculationType>('AREA');
@@ -122,11 +121,29 @@ export function BillingScreen({
   const [itemHeight, setItemHeight] = useState<string>('5');
   const [itemQuantity, setItemQuantity] = useState<string>('1');
   const [itemUnit, setItemUnit] = useState<string>('Sq.ft');
+  const [itemPackageSize, setItemPackageSize] = useState<string>('1000');
+  const [itemPackageUnit, setItemPackageUnit] = useState<string>('Flyers');
   const [itemRate, setItemRate] = useState<string>('50');
   const [itemMinRate, setItemMinRate] = useState<number | undefined>(undefined);
   const [itemMaxRate, setItemMaxRate] = useState<number | undefined>(undefined);
   const [itemNotes, setItemNotes] = useState<string>('');
   const [itemCustomName, setItemCustomName] = useState<string>('');
+  const [itemHsnCode, setItemHsnCode] = useState<string>('998314');
+
+  // Quick "+ Add New Product" Sub-Form State
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdCategoryId, setNewProdCategoryId] = useState(categories[0]?.id || '');
+  const [newProdCalcType, setNewProdCalcType] = useState<CalculationType>('QUANTITY');
+  const [newProdRate, setNewProdRate] = useState('');
+  const [newProdUnit, setNewProdUnit] = useState('Pcs');
+  const [newProdPackageSize, setNewProdPackageSize] = useState('1000');
+
+  // Product Showcase Image state
+  const [showcaseImage, setShowcaseImage] = useState<string | undefined>(
+    initialDocument?.showcaseImage
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Additional Charges state
   const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>(
@@ -159,7 +176,20 @@ export function BillingScreen({
   // Validation errors
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // On type change, update prefix if creating fresh
+  // Filter products based on search query or category
+  const filteredProducts = products.filter(p => {
+    if (productSearchQuery.trim()) {
+      const q = productSearchQuery.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.categoryName.toLowerCase().includes(q) ||
+        p.defaultUnit.toLowerCase().includes(q)
+      );
+    }
+    return p.categoryId === selectedCategoryId;
+  });
+
+  // Handle Document Type change
   const handleDocTypeChange = (newType: 'QUOTATION' | 'INVOICE') => {
     if (newType === docType) return;
     setDocType(newType);
@@ -180,7 +210,7 @@ export function BillingScreen({
     setCustomerSearchQuery('');
   };
 
-  // When Product is selected in line item form
+  // Handle Product Selection
   const handleSelectProduct = (prodId: string) => {
     setSelectedProductId(prodId);
     const prod = products.find(p => p.id === prodId);
@@ -195,23 +225,18 @@ export function BillingScreen({
       if (prod.calculationType === 'AREA') {
         if (!itemWidth || itemWidth === '0') setItemWidth('10');
         if (!itemHeight || itemHeight === '0') setItemHeight('5');
+      } else if (prod.calculationType === 'PACKAGE') {
+        setItemPackageSize('1000');
+        setItemPackageUnit(prod.defaultUnit || 'Flyers');
       }
     }
   };
 
-  // Pre-load first product when category changes
-  useEffect(() => {
-    if (selectedCategoryId) {
-      const prods = products.filter(p => p.categoryId === selectedCategoryId);
-      if (prods.length > 0 && (!selectedProductId || !prods.some(p => p.id === selectedProductId))) {
-        handleSelectProduct(prods[0].id);
-      }
-    }
-  }, [selectedCategoryId]);
-
   // Open modal to add new line item
   const handleStartAddItem = () => {
     setEditingItemId(null);
+    setProductSearchQuery('');
+    setIsCreatingProduct(false);
     const firstCat = categories[0]?.id || '';
     setSelectedCategoryId(firstCat);
     const catProds = products.filter(p => p.categoryId === firstCat);
@@ -233,6 +258,8 @@ export function BillingScreen({
   // Open modal to edit existing line item
   const handleEditItem = (item: BillingItem) => {
     setEditingItemId(item.id);
+    setProductSearchQuery('');
+    setIsCreatingProduct(false);
     const prod = products.find(p => p.id === item.productId);
     if (prod) {
       setSelectedCategoryId(prod.categoryId);
@@ -240,24 +267,69 @@ export function BillingScreen({
     }
     setItemCustomName(item.productName);
     setItemCalculationType(item.calculationType);
-    setItemWidth(item.width.toString());
-    setItemHeight(item.height.toString());
+    setItemWidth(item.width?.toString() || '10');
+    setItemHeight(item.height?.toString() || '5');
     setItemQuantity(item.quantity.toString());
     setItemUnit(item.unit);
     setItemRate(item.rate.toString());
     setItemMinRate(item.minRate);
     setItemMaxRate(item.maxRate);
+    setItemPackageSize(item.packageSize?.toString() || '1000');
+    setItemPackageUnit(item.packageUnit || 'Flyers');
+    setItemHsnCode(item.hsnCode || '998314');
     setItemNotes(item.notes || '');
     setIsAddingItem(true);
   };
 
+  // Quick Save New Product to Permanent Database
+  const handleQuickCreateProduct = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProdName.trim()) {
+      alert('Please enter a product name.');
+      return;
+    }
+    const cat = categories.find(c => c.id === newProdCategoryId) || categories[0];
+    const rateVal = Number(newProdRate) || 100;
+    const newProduct: Product = {
+      id: `prod_${Date.now()}`,
+      categoryId: cat.id,
+      categoryName: cat.name,
+      name: newProdName.trim(),
+      calculationType: newProdCalcType,
+      minPrice: rateVal,
+      maxPrice: rateVal,
+      defaultRate: rateVal,
+      defaultUnit: newProdCalcType === 'AREA' ? 'Sq.ft' : (newProdCalcType === 'PACKAGE' ? 'Pkg' : newProdUnit),
+      notes: newProdCalcType === 'PACKAGE' ? `1 Pkg = ${newProdPackageSize} flyers` : undefined
+    };
+
+    saveProduct(newProduct);
+    if (onAddNewProduct) {
+      onAddNewProduct(newProduct);
+    }
+
+    // Immediately select this product for the current line item
+    setSelectedCategoryId(newProduct.categoryId);
+    setSelectedProductId(newProduct.id);
+    setItemCustomName(newProduct.name);
+    setItemCalculationType(newProduct.calculationType);
+    setItemRate(newProduct.defaultRate.toString());
+    setItemUnit(newProduct.defaultUnit);
+    if (newProduct.calculationType === 'PACKAGE') {
+      setItemPackageSize(newProdPackageSize);
+      setItemPackageUnit('Flyers');
+    }
+    setIsCreatingProduct(false);
+    setNewProdName('');
+  };
+
   // Save Item to list
   const handleSaveItemToList = () => {
-    // Validation
     const qty = Number(itemQuantity);
     const rate = Number(itemRate);
     const width = Number(itemWidth);
     const height = Number(itemHeight);
+    const pkgSize = Number(itemPackageSize);
 
     if (isNaN(qty) || qty <= 0) {
       alert('Please enter a valid positive quantity.');
@@ -290,14 +362,17 @@ export function BillingScreen({
     const newItem: BillingItem = {
       id: editingItemId || `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       productId: selectedProductId || 'custom_item',
-      productName: itemCustomName || prod?.name || 'Custom Printing Item',
+      productName: itemCustomName || prod?.name || 'Custom Product',
       categoryName: cat?.name || prod?.categoryName || 'General',
       calculationType: itemCalculationType,
       width: itemCalculationType === 'AREA' ? width : 0,
       height: itemCalculationType === 'AREA' ? height : 0,
       area: calculatedArea,
       quantity: qty,
-      unit: itemUnit || (itemCalculationType === 'AREA' ? 'Sq.ft' : 'Pcs'),
+      unit: itemCalculationType === 'PACKAGE' ? 'Pkg' : (itemUnit || (itemCalculationType === 'AREA' ? 'Sq.ft' : 'Pcs')),
+      packageSize: itemCalculationType === 'PACKAGE' ? pkgSize : undefined,
+      packageUnit: itemCalculationType === 'PACKAGE' ? itemPackageUnit : undefined,
+      hsnCode: gstEnabled ? itemHsnCode : undefined,
       rate,
       minRate: itemMinRate,
       maxRate: itemMaxRate,
@@ -321,12 +396,11 @@ export function BillingScreen({
 
   // Add Additional Charge
   const handleAddChargePreset = (preset: { type: AdditionalChargeType; defaultLabel: string }) => {
-    // Prevent duplicate of exact same type unless desired
     const newCharge: AdditionalCharge = {
       id: `chg_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
       type: preset.type,
       label: preset.defaultLabel,
-      amount: 500 // default initial sensible value
+      amount: 500
     };
     setAdditionalCharges([...additionalCharges, newCharge]);
   };
@@ -341,6 +415,19 @@ export function BillingScreen({
     setAdditionalCharges(additionalCharges.filter(chg => chg.id !== id));
   };
 
+  // Handle Image Upload for Showcase
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = event => {
+      const dataUrl = event.target?.result as string;
+      setShowcaseImage(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Live Summary Calculation
   const summary = calculateDocumentSummary({
     items,
@@ -352,8 +439,9 @@ export function BillingScreen({
     advancePaid
   });
 
-  // Construct Document Object for saving or previewing
+  // Construct Document Object
   const buildCurrentDocument = (): BillDocument => {
+    const isPaid = docType === 'INVOICE' && summary.balanceDue <= 0 && summary.grandTotal > 0;
     return {
       id: initialDocument?.id || `doc_${Date.now()}`,
       documentType: docType,
@@ -373,11 +461,15 @@ export function BillingScreen({
       discountAmount: summary.discountAmount,
       additionalChargesTotal: summary.additionalChargesTotal,
       gstEnabled,
-      gstPercentage,
-      gstAmount: summary.gstAmount,
+      gstPercentage: gstEnabled ? gstPercentage : 0,
+      gstAmount: gstEnabled ? summary.gstAmount : 0,
       grandTotal: summary.grandTotal,
       advancePaid,
       balanceDue: summary.balanceDue,
+      showcaseImage,
+      quotationStatus: docType === 'QUOTATION' ? (initialDocument?.quotationStatus || 'PENDING') : undefined,
+      isPaid,
+      paidAt: isPaid ? (initialDocument?.paidAt || new Date().toISOString()) : undefined,
       payments: advancePaid > 0 ? [
         {
           id: `pay_${Date.now()}`,
@@ -388,7 +480,7 @@ export function BillingScreen({
         }
       ] : (initialDocument?.payments || []),
       termsAndConditions: initialDocument?.termsAndConditions || settings.termsAndConditions,
-      status: summary.balanceDue <= 0 && summary.grandTotal > 0 ? 'Paid' : (advancePaid > 0 ? 'Partial' : 'Draft'),
+      status: isPaid ? 'Paid' : (advancePaid > 0 ? 'Partial' : 'Draft'),
       createdAt: initialDocument?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -405,13 +497,13 @@ export function BillingScreen({
     }
 
     if (items.length === 0) {
-      setValidationError('Please add at least one line item to the bill.');
+      setValidationError('Please add at least one line item.');
       return;
     }
 
     const doc = buildCurrentDocument();
 
-    // Auto-save new customer if mobile is provided and customer does not already exist
+    // Auto-save customer if mobile is provided
     if (customerMobile.trim() && !selectedCustomerId) {
       const exists = customers.some(c => c.mobile.replace(/\D/g, '') === customerMobile.replace(/\D/g, ''));
       if (!exists) {
@@ -434,15 +526,6 @@ export function BillingScreen({
     onPreviewDocument(doc);
   };
 
-  // Filter customers for autocomplete
-  const filteredCustomers = customerSearchQuery.trim()
-    ? customers.filter(
-        c =>
-          c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-          c.mobile.includes(customerSearchQuery)
-      )
-    : customers.slice(0, 5);
-
   return (
     <div className="max-w-3xl mx-auto px-3.5 pt-3 pb-28 space-y-4">
       {/* Top Header Card */}
@@ -456,7 +539,7 @@ export function BillingScreen({
             <span>Back</span>
           </button>
 
-          {/* Quotation vs Invoice Toggle */}
+          {/* Quotation vs Tax Invoice Toggle */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
@@ -558,28 +641,28 @@ export function BillingScreen({
               <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 space-y-1">
                 <input
                   type="text"
-                  placeholder="Search customer name/phone..."
+                  placeholder="Search name or mobile..."
                   value={customerSearchQuery}
                   onChange={e => setCustomerSearchQuery(e.target.value)}
-                  className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  autoFocus
+                  className="w-full text-xs p-1.5 border border-slate-300 rounded-lg mb-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-                <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 pt-1">
-                  {filteredCustomers.length === 0 ? (
-                    <div className="p-2 text-[11px] text-slate-400 text-center">No matching customer found</div>
-                  ) : (
-                    filteredCustomers.map(cust => (
+                <div className="max-h-48 overflow-y-auto space-y-0.5">
+                  {customers
+                    .filter(c =>
+                      c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+                      c.mobile.includes(customerSearchQuery)
+                    )
+                    .map(cust => (
                       <button
                         key={cust.id}
                         type="button"
                         onClick={() => handleSelectCustomer(cust)}
-                        className="w-full text-left p-2 hover:bg-indigo-50 rounded-lg text-xs transition"
+                        className="w-full text-left p-1.5 hover:bg-indigo-50 rounded text-xs transition"
                       >
-                        <div className="font-bold text-slate-800">{cust.name}</div>
-                        <div className="text-[11px] text-slate-500">{cust.mobile}</div>
+                        <div className="font-bold text-slate-900">{cust.name}</div>
+                        <div className="text-[10px] text-slate-500">{cust.mobile}</div>
                       </button>
-                    ))
-                  )}
+                    ))}
                 </div>
               </div>
             )}
@@ -588,12 +671,12 @@ export function BillingScreen({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              Customer / Company Name <span className="text-rose-500">*</span>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Customer / Business Name *
             </label>
             <input
               type="text"
-              placeholder="e.g. Apex Hospital, Sharma Traders"
+              placeholder="e.g. The Maple Waffle - Bangalore"
               value={customerName}
               onChange={e => setCustomerName(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -601,62 +684,63 @@ export function BillingScreen({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              Mobile Number
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Mobile Phone Number
             </label>
             <input
               type="tel"
-              placeholder="e.g. 9876543210"
+              placeholder="10-digit mobile"
               value={customerMobile}
               onChange={e => setCustomerMobile(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
 
-          <div className="sm:col-span-2">
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              Delivery / Billing Address
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Delivery Address / Site Location
             </label>
             <input
               type="text"
-              placeholder="e.g. Shop 4, Main Market, MG Road"
+              placeholder="e.g. D.B Road, Coimbatore"
               value={customerAddress}
               onChange={e => setCustomerAddress(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-              Customer GSTIN (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 27ABCDE1234F1Z5"
-              value={customerGst}
-              onChange={e => setCustomerGst(e.target.value.toUpperCase())}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none uppercase"
-            />
-          </div>
+          {gstEnabled && (
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                Customer GSTIN
+              </label>
+              <input
+                type="text"
+                placeholder="33AAAAA0000A1Z5"
+                value={customerGst}
+                onChange={e => setCustomerGst(e.target.value.toUpperCase())}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold uppercase text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Line Items Section */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <div>
+          <div className="flex items-center gap-2">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-              Product & Service Items ({items.length})
+              Quotation / Bill Items ({items.length})
             </h3>
-            <p className="text-[11px] text-slate-400">Area calculation (Width × Height) or Piece rate</p>
           </div>
 
           <button
             type="button"
             onClick={handleStartAddItem}
-            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition shadow-xs"
+            className="flex items-center gap-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition shadow-xs"
           >
-            <Plus size={15} />
+            <Plus size={14} />
             <span>Add Item</span>
           </button>
         </div>
@@ -667,7 +751,7 @@ export function BillingScreen({
             <Calculator size={28} className="mx-auto text-slate-400 mb-2" />
             <p className="text-xs font-bold text-slate-700">No products added yet</p>
             <p className="text-[11px] text-slate-400 max-w-xs mx-auto mt-0.5 mb-3">
-              Tap the button below to pick an item from the preloaded pricing catalog.
+              Tap the button below to pick an item from the preloaded pricing catalog or create a package.
             </p>
             <button
               type="button"
@@ -694,14 +778,18 @@ export function BillingScreen({
                       {item.productName}
                     </span>
                     <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 shrink-0">
-                      {item.calculationType === 'AREA' ? 'Sq.ft Area' : 'Unit'}
+                      {item.calculationType === 'AREA' ? 'Sq.ft' : (item.calculationType === 'PACKAGE' ? 'Package' : 'Unit')}
                     </span>
                   </div>
 
                   <div className="text-[11px] text-slate-500 mt-1 pl-7">
                     {item.calculationType === 'AREA' ? (
                       <span>
-                        Size: <strong className="text-slate-800">{item.width}ft × {item.height}ft</strong> = <strong className="text-indigo-600">{item.area} Sq.ft</strong> | Qty: {item.quantity} | Rate: {formatCurrency(item.rate)}/sq.ft
+                        Size: <strong className="text-slate-800">{item.width}ft × {item.height}ft</strong> = <strong className="text-indigo-600">{item.area} Sq.ft</strong> | Rate: {formatCurrency(item.rate)}/sq.ft
+                      </span>
+                    ) : item.calculationType === 'PACKAGE' ? (
+                      <span>
+                        Qty: <strong className="text-slate-800">{item.quantity} {item.quantity > 1 ? 'Packages' : 'Package'}</strong> ({((item.packageSize || 1000) * item.quantity).toLocaleString()} {item.packageUnit || 'Flyers'}) | Rate: <strong className="text-indigo-600">{formatCurrency(item.rate)} / pkg</strong>
                       </span>
                     ) : (
                       <span>
@@ -720,8 +808,7 @@ export function BillingScreen({
                     <button
                       type="button"
                       onClick={() => handleEditItem(item)}
-                      className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg transition"
-                      title="Edit Item"
+                      className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg transition text-xs font-semibold"
                     >
                       Edit
                     </button>
@@ -746,8 +833,8 @@ export function BillingScreen({
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="font-extrabold text-slate-900 text-sm">
-                {editingItemId ? 'Edit Line Item' : 'Add Product to Bill'}
+              <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <span>{editingItemId ? 'Edit Line Item' : 'Add Product to Bill'}</span>
               </h4>
               <button
                 type="button"
@@ -758,48 +845,122 @@ export function BillingScreen({
               </button>
             </div>
 
-            {/* Category Filter */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">
-                Product Category
-              </label>
-              <select
-                value={selectedCategoryId}
-                onChange={e => setSelectedCategoryId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              >
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Quick "+ Add New Product" button & Product Search */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  Product / Service Catalog
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingProduct(!isCreatingProduct)}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-lg transition flex items-center gap-1"
+                >
+                  <Plus size={13} />
+                  <span>+ Add New Product</span>
+                </button>
+              </div>
 
-            {/* Product Selector */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1 uppercase tracking-wider">
-                Select Product / Service
-              </label>
-              <select
-                value={selectedProductId}
-                onChange={e => handleSelectProduct(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              >
-                {products
-                  .filter(p => p.categoryId === selectedCategoryId)
-                  .map(prod => (
+              {/* Inline Quick Add Product Sub-Form (Requirement #6) */}
+              {isCreatingProduct && (
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-indigo-900">
+                      Create & Save New Product to Database
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingProduct(false)}
+                      className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Product Name (e.g. 1000 Flyers / Acrylic Letters)"
+                      value={newProdName}
+                      onChange={e => setNewProdName(e.target.value)}
+                      className="w-full text-xs font-semibold bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <select
+                        value={newProdCalcType}
+                        onChange={e => setNewProdCalcType(e.target.value as CalculationType)}
+                        className="w-full text-xs bg-white border border-indigo-200 rounded-lg px-2 py-1.5 font-semibold"
+                      >
+                        <option value="QUANTITY">Quantity (Pcs/Units)</option>
+                        <option value="AREA">Area (Sq.ft)</option>
+                        <option value="PACKAGE">Package (e.g. 1000 Flyers)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        placeholder="Rate / Price (₹)"
+                        value={newProdRate}
+                        onChange={e => setNewProdRate(e.target.value)}
+                        className="w-full text-xs font-bold bg-white border border-indigo-200 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  {newProdCalcType === 'PACKAGE' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-indigo-900 font-semibold">1 Package =</span>
+                      <input
+                        type="number"
+                        value={newProdPackageSize}
+                        onChange={e => setNewProdPackageSize(e.target.value)}
+                        className="w-20 text-xs bg-white border border-indigo-200 rounded px-2 py-1 font-bold"
+                      />
+                      <span className="text-[11px] text-indigo-900 font-semibold">Flyers / Pieces</span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleQuickCreateProduct}
+                    className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-xs transition"
+                  >
+                    Save & Select This Product
+                  </button>
+                </div>
+              )}
+
+              {/* Search Box in Add Item Flow (Requirement #5) */}
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search products: type FL, STAMP, ACP, LED, FLYER..."
+                  value={productSearchQuery}
+                  onChange={e => setProductSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Product Selector Dropdown */}
+              <div>
+                <select
+                  value={selectedProductId}
+                  onChange={e => handleSelectProduct(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                >
+                  {filteredProducts.map(prod => (
                     <option key={prod.id} value={prod.id}>
-                      {prod.name} ({prod.calculationType === 'AREA' ? 'Sq.ft' : prod.defaultUnit})
+                      {prod.name} ({prod.calculationType === 'AREA' ? 'Sq.ft' : (prod.calculationType === 'PACKAGE' ? 'Pkg' : prod.defaultUnit)})
                       {prod.minPrice && prod.maxPrice && prod.minPrice !== prod.maxPrice 
                         ? ` [Range: ₹${prod.minPrice} - ₹${prod.maxPrice}]` 
                         : ` [₹${prod.defaultRate}]`}
                     </option>
                   ))}
-              </select>
+                </select>
+              </div>
             </div>
 
-            {/* Custom Item Name (Editable) */}
+            {/* Custom Item Name (Editable Title on Bill) */}
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                 Item Title / Description on Bill
@@ -812,48 +973,64 @@ export function BillingScreen({
               />
             </div>
 
-            {/* Calculation Type Toggle: Area vs Quantity */}
+            {/* Calculation Method Selection: Area vs Quantity vs Package (Requirements #7, #8) */}
             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
               <label className="block text-[11px] font-bold text-slate-600 mb-1.5 uppercase tracking-wider">
                 Calculation Method
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
                     setItemCalculationType('AREA');
                     setItemUnit('Sq.ft');
                   }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
                     itemCalculationType === 'AREA'
                       ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  <Calculator size={14} />
-                  <span>Area-Based (Sq.ft)</span>
+                  <Calculator size={13} />
+                  <span>Sq.ft Area</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => {
                     setItemCalculationType('QUANTITY');
-                    if (itemUnit === 'Sq.ft') setItemUnit('Pcs');
+                    if (itemUnit === 'Sq.ft' || itemUnit === 'Pkg') setItemUnit('Pcs');
                   }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
                     itemCalculationType === 'QUANTITY'
                       ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  <Plus size={14} />
-                  <span>Quantity-Based</span>
+                  <Plus size={13} />
+                  <span>Per Unit</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setItemCalculationType('PACKAGE');
+                    setItemUnit('Pkg');
+                  }}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 ${
+                    itemCalculationType === 'PACKAGE'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <PackageIcon size={13} />
+                  <span>Package</span>
                 </button>
               </div>
             </div>
 
-            {/* Dimensions: Width x Height if Area-based */}
-            {itemCalculationType === 'AREA' ? (
+            {/* Area-based Inputs */}
+            {itemCalculationType === 'AREA' && (
               <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-2">
                 <div className="text-xs font-bold text-indigo-900">
                   Enter Dimensions in Feet (Width × Height):
@@ -888,7 +1065,6 @@ export function BillingScreen({
                   </div>
                 </div>
 
-                {/* Auto Calculated Area Display */}
                 <div className="flex items-center justify-between pt-1 border-t border-indigo-200/60 text-xs font-semibold text-indigo-950">
                   <span>Calculated Area:</span>
                   <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-md text-xs font-black">
@@ -896,43 +1072,92 @@ export function BillingScreen({
                   </span>
                 </div>
               </div>
-            ) : null}
+            )}
 
-            {/* Quantity and Unit Row */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={itemQuantity}
-                  onChange={e => setItemQuantity(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
+            {/* Package-based Pricing Inputs (Requirement #8) */}
+            {itemCalculationType === 'PACKAGE' && (
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 space-y-2.5">
+                <div className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                  <PackageIcon size={14} className="text-amber-700" />
+                  <span>Package Pricing Details (e.g. 1000 Flyers = ₹2,500)</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 mb-0.5">
+                      Number of Packages
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={itemQuantity}
+                      onChange={e => setItemQuantity(e.target.value)}
+                      className="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 mb-0.5">
+                      Units per Package
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      step="100"
+                      value={itemPackageSize}
+                      onChange={e => setItemPackageSize(e.target.value)}
+                      placeholder="e.g. 1000"
+                      className="w-full bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-amber-900 font-semibold bg-amber-100/70 p-2 rounded-lg">
+                  Total Items: <strong>{(Number(itemQuantity) * Number(itemPackageSize || 1000)).toLocaleString()} {itemPackageUnit}</strong> across <strong>{itemQuantity} package(s)</strong>.
+                  <span className="block text-[10px] text-amber-800 font-normal mt-0.5">
+                    * The quotation displays package rate directly without converting into a per-piece price.
+                  </span>
+                </div>
               </div>
+            )}
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                  Unit
-                </label>
-                <input
-                  type="text"
-                  value={itemUnit}
-                  onChange={e => setItemUnit(e.target.value)}
-                  placeholder="Sq.ft / Pcs / Sets / Books"
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
+            {/* Standard Quantity & Unit if not area and not package */}
+            {itemCalculationType === 'QUANTITY' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={itemQuantity}
+                    onChange={e => setItemQuantity(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={itemUnit}
+                    onChange={e => setItemUnit(e.target.value)}
+                    placeholder="Pcs / Sets / Books"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Rate & Price Range Handling */}
+            {/* Rate / Price Row */}
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                  Rate per {itemCalculationType === 'AREA' ? 'Sq.ft' : itemUnit || 'Unit'} (₹)
+                  Rate per {itemCalculationType === 'AREA' ? 'Sq.ft' : (itemCalculationType === 'PACKAGE' ? 'Package' : itemUnit || 'Unit')} (₹)
                 </label>
                 {itemMinRate !== undefined && itemMaxRate !== undefined && itemMinRate !== itemMaxRate && (
                   <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
@@ -940,34 +1165,6 @@ export function BillingScreen({
                   </span>
                 )}
               </div>
-
-              {/* Price Range helper quick chips */}
-              {itemMinRate !== undefined && itemMaxRate !== undefined && itemMinRate !== itemMaxRate && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-slate-500 font-medium">Quick select:</span>
-                  <button
-                    type="button"
-                    onClick={() => setItemRate(itemMinRate.toString())}
-                    className="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-indigo-500 text-[11px] font-semibold text-slate-700"
-                  >
-                    Min: ₹{itemMinRate}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setItemRate(Math.round((itemMinRate + itemMaxRate) / 2).toString())}
-                    className="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-indigo-500 text-[11px] font-semibold text-slate-700"
-                  >
-                    Avg: ₹{Math.round((itemMinRate + itemMaxRate) / 2)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setItemRate(itemMaxRate.toString())}
-                    className="px-2 py-0.5 rounded bg-white border border-slate-300 hover:border-indigo-500 text-[11px] font-semibold text-slate-700"
-                  >
-                    Max: ₹{itemMaxRate}
-                  </button>
-                </div>
-              )}
 
               <input
                 type="number"
@@ -978,6 +1175,22 @@ export function BillingScreen({
                 className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-extrabold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
+
+            {/* Conditional HSN Code (Only when GST is enabled - Requirement #9) */}
+            {gstEnabled && (
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  HSN / SAC Code
+                </label>
+                <input
+                  type="text"
+                  value={itemHsnCode}
+                  onChange={e => setItemHsnCode(e.target.value)}
+                  placeholder="e.g. 998314 for design & printing"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-900 focus:outline-none"
+                />
+              </div>
+            )}
 
             {/* Calculated Item Total Preview */}
             <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between">
@@ -1096,6 +1309,68 @@ export function BillingScreen({
         )}
       </div>
 
+      {/* Product Showcase Image Section (Requirement #3) */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <ImageIcon size={15} className="text-indigo-600" />
+              <span>Product / Design Showcase Image (Optional)</span>
+            </h3>
+            <p className="text-[11px] text-slate-400">
+              Attach storefront or signage design reference to display on the quotation
+            </p>
+          </div>
+        </div>
+
+        {showcaseImage ? (
+          <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-2 flex flex-col sm:flex-row items-center gap-4">
+            <div className="max-h-40 max-w-sm overflow-hidden rounded-lg border border-slate-300 bg-white p-1">
+              <img
+                src={showcaseImage}
+                alt="Showcase"
+                className="max-h-36 w-auto object-contain"
+              />
+            </div>
+            <div className="flex-1 space-y-2 text-center sm:text-left">
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                <CheckCircle2 size={14} />
+                <span>Showcase Image Attached</span>
+              </span>
+              <p className="text-xs text-slate-500">
+                This design will appear framed on the first page of the quotation and generated PDF.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowcaseImage(undefined)}
+                className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-lg border border-rose-200 transition inline-flex items-center gap-1"
+              >
+                <Trash2 size={13} />
+                <span>Remove Image</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageFileChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 py-3 px-4 rounded-xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 text-xs font-bold transition flex items-center justify-center gap-2"
+            >
+              <Upload size={16} />
+              <span>Upload Design Image from Device</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Financial Summary Breakdown */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
         <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
@@ -1146,32 +1421,47 @@ export function BillingScreen({
           </div>
         )}
 
-        {/* GST Toggle & Rate */}
-        <div className="flex items-center justify-between text-xs p-2 bg-slate-50 rounded-xl border border-slate-200/80">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={gstEnabled}
-              onChange={e => setGstEnabled(e.target.checked)}
-              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-            />
-            <span className="font-semibold text-slate-800">Apply GST / Tax</span>
-          </label>
+        {/* Conditional GST Functionality (Requirement #9) */}
+        <div className="space-y-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200/80">
+          <div className="flex items-center justify-between text-xs">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={gstEnabled}
+                onChange={e => setGstEnabled(e.target.checked)}
+                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="font-bold text-slate-800">Apply GST Tax (CGST + SGST)</span>
+            </label>
+
+            {gstEnabled && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="28"
+                  value={gstPercentage}
+                  onChange={e => setGstPercentage(Number(e.target.value) || 0)}
+                  className="w-12 text-xs font-bold text-right bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none"
+                />
+                <span className="text-xs font-semibold text-slate-600">%</span>
+                <span className="text-xs font-bold text-slate-900 ml-1">
+                  ({formatCurrency(summary.gstAmount)})
+                </span>
+              </div>
+            )}
+          </div>
 
           {gstEnabled && (
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number"
-                min="0"
-                max="28"
-                value={gstPercentage}
-                onChange={e => setGstPercentage(Number(e.target.value) || 0)}
-                className="w-12 text-xs font-bold text-right bg-white border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none"
-              />
-              <span className="text-xs font-semibold text-slate-600">%</span>
-              <span className="text-xs font-bold text-slate-900 ml-1">
-                ({formatCurrency(summary.gstAmount)})
-              </span>
+            <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-600 space-y-1">
+              <div className="flex justify-between">
+                <span>CGST ({gstPercentage / 2}%):</span>
+                <span className="font-semibold">{formatCurrency(summary.gstAmount / 2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>SGST ({gstPercentage / 2}%):</span>
+                <span className="font-semibold">{formatCurrency(summary.gstAmount / 2)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -1189,6 +1479,41 @@ export function BillingScreen({
           </div>
         </div>
 
+        {/* Invoice Payment Status Selection (Requirement #15) */}
+        {docType === 'INVOICE' && (
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+              Invoice Payment Status:
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAdvancePaid(summary.grandTotal)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  advancePaid >= summary.grandTotal && summary.grandTotal > 0
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Check size={14} />
+                <span>Mark as PAID (Full)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAdvancePaid(0)}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  advancePaid < summary.grandTotal
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>Mark as UNPAID (Due)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Advance & Balance Due */}
         <div className="grid grid-cols-2 gap-3 pt-1">
           <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
@@ -1205,18 +1530,11 @@ export function BillingScreen({
             <div className="flex items-center gap-1 mt-1.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setAdvancePaid(Math.round(summary.grandTotal * 0.6))}
+                onClick={() => setAdvancePaid(Math.round(summary.grandTotal * 0.8))}
                 className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-1.5 py-0.5 rounded transition shadow-xs"
-                title="60% Advance before work starts as per quotation terms"
+                title="80% Advance before work starts as per quotation terms"
               >
-                60% Adv
-              </button>
-              <button
-                type="button"
-                onClick={() => setAdvancePaid(Math.round(summary.grandTotal * 0.5))}
-                className="text-[10px] bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold px-1.5 py-0.5 rounded transition"
-              >
-                50%
+                80% Adv
               </button>
               <button
                 type="button"
@@ -1251,7 +1569,7 @@ export function BillingScreen({
         {advancePaid > 0 && (
           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <span className="text-[11px] font-bold text-slate-700 block">
-              Advance Payment Method:
+              Payment Method:
             </span>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
               {(['UPI', 'Cash', 'Bank transfer', 'Card', 'Other'] as PaymentMethod[]).map(method => (

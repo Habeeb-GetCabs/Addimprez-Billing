@@ -52,13 +52,15 @@ export function DashboardView({
     d => d.documentType === 'QUOTATION' && (d.date && d.date.startsWith(todayStr))
   ).length;
 
-  const totalSales = documents
-    .filter(d => d.documentType === 'INVOICE')
-    .reduce((sum, d) => sum + (d.grandTotal || 0), 0);
+  const invoices = documents.filter(d => d.documentType === 'INVOICE');
+  const paidInvoices = invoices.filter(d => d.isPaid || d.balanceDue <= 0);
+  const unpaidInvoices = invoices.filter(d => !d.isPaid && d.balanceDue > 0);
 
-  const pendingPayments = documents
-    .filter(d => d.documentType === 'INVOICE')
-    .reduce((sum, d) => sum + (d.balanceDue || 0), 0);
+  // Requirement #17: Earnings based strictly on PAID bills
+  const totalReceivedEarnings = paidInvoices.reduce((sum, d) => sum + (d.grandTotal || 0), 0);
+  const totalUnpaidAmount = unpaidInvoices.reduce((sum, d) => sum + (d.balanceDue || 0), 0);
+  const paidBillCount = paidInvoices.length;
+  const unpaidBillCount = unpaidInvoices.length;
 
   const recentDocs = documents
     .filter(d => filterType === 'ALL' || d.documentType === filterType)
@@ -126,32 +128,32 @@ export function DashboardView({
           <p className="text-[11px] text-slate-400 mt-0.5">Quotations sent today</p>
         </div>
 
-        {/* Total Sales */}
+        {/* Paid Earnings (Requirement #17) */}
         <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-xs font-medium">Total Sales</span>
+            <span className="text-xs font-medium">Paid Earnings</span>
             <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
               <IndianRupee size={16} />
             </span>
           </div>
-          <div className="text-xl font-black text-slate-900 truncate">
-            {formatCurrency(totalSales)}
+          <div className="text-xl font-black text-emerald-700 truncate">
+            {formatCurrency(totalReceivedEarnings)}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">All-time invoice value</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{paidBillCount} Paid bills received</p>
         </div>
 
-        {/* Pending Payments */}
+        {/* Pending Payments / Outstanding Due */}
         <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
           <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-xs font-medium">Pending Due</span>
+            <span className="text-xs font-medium">Outstanding Due</span>
             <span className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
               <Clock size={16} />
             </span>
           </div>
           <div className="text-xl font-black text-rose-600 truncate">
-            {formatCurrency(pendingPayments)}
+            {formatCurrency(totalUnpaidAmount)}
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Receivable from clients</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{unpaidBillCount} Unpaid bills pending</p>
         </div>
 
         {/* Customers */}

@@ -16,9 +16,10 @@ export function calculateArea(width: number, height: number): number {
  * Calculates item line total according to calculation type
  * AREA: Area × Sq.ft Rate × Quantity
  * QUANTITY: Quantity × Rate
+ * PACKAGE: Package Quantity × Package Rate (e.g. 2 packages of 1000 flyers @ ₹2500 = ₹5000)
  */
 export function calculateItemAmount(item: {
-  calculationType: 'AREA' | 'QUANTITY';
+  calculationType: 'AREA' | 'QUANTITY' | 'PACKAGE';
   width?: number;
   height?: number;
   area?: number;
@@ -33,6 +34,9 @@ export function calculateItemAmount(item: {
       ? Math.max(0, Number(item.area) || 0)
       : calculateArea(item.width || 0, item.height || 0);
     return Math.round(area * rate * qty * 100) / 100;
+  } else if (item.calculationType === 'PACKAGE') {
+    // For package pricing: quantity is number of packages, rate is price per package
+    return Math.round(qty * rate * 100) / 100;
   } else {
     return Math.round(qty * rate * 100) / 100;
   }
@@ -126,5 +130,27 @@ export function formatDate(dateString: string): string {
     });
   } catch {
     return dateString;
+  }
+}
+
+/**
+ * Automatically calculates the number of days since the original bill date:
+ * CURRENT DATE - BILL DATE
+ * Examples: 25 Days Due, 40 Days Due, 0 Days Due
+ */
+export function calculateDaysDue(billDateStr?: string): number {
+  if (!billDateStr) return 0;
+  try {
+    const billDate = new Date(billDateStr);
+    if (isNaN(billDate.getTime())) return 0;
+    const now = new Date();
+    // Compare dates at start of day
+    const startOfDayBill = new Date(billDate.getFullYear(), billDate.getMonth(), billDate.getDate()).getTime();
+    const startOfDayNow = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const diffTime = startOfDayNow - startOfDayBill;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  } catch {
+    return 0;
   }
 }
