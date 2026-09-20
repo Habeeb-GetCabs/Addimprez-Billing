@@ -18,13 +18,16 @@ import {
   Link2,
   ExternalLink,
   Copy,
-  Check
+  Check,
+  Loader2,
+  MessageCircle
 } from 'lucide-react';
 import { BillDocument, BusinessSettings, PaymentMethod, PaymentRecord } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { downloadBillPdf, printBillPdf, shareViaWhatsApp, getPdfBlobUrl, openPdfInNewTab } from '../utils/pdfGenerator';
 import { getShareableBillUrl } from '../utils/shareableLink';
 import { LetterpadBillView } from './LetterpadBillView';
+import { WhatsAppShareModal } from './WhatsAppShareModal';
 
 interface DocumentDetailModalProps {
   document: BillDocument;
@@ -50,6 +53,10 @@ export function DocumentDetailModal({
   const [showPdfIframe, setShowPdfIframe] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   const isInvoice = doc.documentType === 'INVOICE';
   const isPaid = doc.balanceDue <= 0 && doc.grandTotal > 0;
@@ -81,6 +88,34 @@ export function DocumentDetailModal({
     }
   };
 
+  const handleSavePdf = async () => {
+    if (isSavingPdf) return;
+    setIsSavingPdf(true);
+    try {
+      const res = await downloadBillPdf(doc, settings);
+      setSaveStatus(res.message || 'Saved!');
+      setTimeout(() => setSaveStatus(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus('Error saving');
+      setTimeout(() => setSaveStatus(null), 3000);
+    } finally {
+      setIsSavingPdf(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (isPrinting) return;
+    setIsPrinting(true);
+    try {
+      await printBillPdf(doc, settings);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   const handleCopyLink = () => {
     try {
       const url = getShareableBillUrl(doc);
@@ -99,26 +134,11 @@ export function DocumentDetailModal({
     }
   };
 
-  const handleNativeShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `${isInvoice ? 'Invoice' : 'Quotation'} ${doc.documentNumber}`,
-          text: `${isInvoice ? 'Invoice' : 'Quotation'} from ${settings.businessName} for Rs. ${doc.grandTotal}`,
-        });
-      } catch (err) {
-        shareViaWhatsApp(doc, settings);
-      }
-    } else {
-      shareViaWhatsApp(doc, settings);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[96vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto print:p-0 print:bg-white print:static">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[96vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 print:border-none print:shadow-none print:max-w-none print:max-h-none print:rounded-none">
         {/* Modal Top Control Bar */}
-        <div className="p-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+        <div className="no-print p-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <span className={`p-1.5 rounded-lg ${isInvoice ? 'bg-blue-600' : 'bg-indigo-600'} text-white`}>
               {isInvoice ? <Receipt size={17} /> : <FileText size={17} />}
@@ -152,13 +172,14 @@ export function DocumentDetailModal({
         </div>
 
         {/* Action Button Bar */}
-        <div className="bg-slate-100 p-2.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto shrink-0">
+        <div className="no-print bg-slate-100 p-2.5 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto shrink-0">
           {/* Preview PDF */}
           <button
+            type="button"
             onClick={handlePreviewPdfToggle}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation ${
               showPdfIframe 
-                ? 'bg-indigo-600 text-white' 
+                ? 'bg-indigo-600 text-white shadow-xs' 
                 : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-300'
             }`}
           >
@@ -168,41 +189,54 @@ export function DocumentDetailModal({
 
           {/* Save PDF */}
           <button
-            onClick={() => downloadBillPdf(doc, settings)}
-            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0"
+            type="button"
+            disabled={isSavingPdf}
+            onClick={handleSavePdf}
+            className="px-3 py-2 sm:py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation disabled:opacity-60"
+            title="Download or save PDF file"
           >
-            <Download size={14} />
-            <span>Save PDF</span>
+            {isSavingPdf ? (
+              <Loader2 size={14} className="animate-spin text-indigo-600" />
+            ) : saveStatus ? (
+              <Check size={14} className="text-emerald-600" />
+            ) : (
+              <Download size={14} />
+            )}
+            <span>{isSavingPdf ? 'Saving PDF...' : saveStatus ? saveStatus : 'Save PDF'}</span>
           </button>
 
           {/* Print Letterpad / Bill */}
           <button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                window.print();
-              } else {
-                printBillPdf(doc, settings);
-              }
-            }}
-            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0"
+            type="button"
+            disabled={isPrinting}
+            onClick={handlePrint}
+            className="px-3 py-2 sm:py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation disabled:opacity-60"
+            title="Print bill or open print dialog"
           >
-            <Printer size={14} />
-            <span>Print</span>
+            {isPrinting ? (
+              <Loader2 size={14} className="animate-spin text-indigo-600" />
+            ) : (
+              <Printer size={14} />
+            )}
+            <span>{isPrinting ? 'Opening...' : 'Print'}</span>
           </button>
 
-          {/* Share PDF / WhatsApp */}
+          {/* WhatsApp Share */}
           <button
-            onClick={handleNativeShare}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 shrink-0"
+            type="button"
+            onClick={() => setShowWhatsAppModal(true)}
+            className="px-3 py-2 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation"
+            title="Share bill directly on WhatsApp"
           >
-            <Share2 size={14} />
+            <MessageCircle size={14} className="fill-white/30" />
             <span>WhatsApp Share</span>
           </button>
 
           {/* Copy Shareable Online Link */}
           <button
+            type="button"
             onClick={handleCopyLink}
-            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0"
+            className="px-3 py-2 sm:py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation"
             title="Copy online link for customer to view this bill directly"
           >
             {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Link2 size={14} />}
@@ -212,8 +246,9 @@ export function DocumentDetailModal({
           {/* Convert Quotation -> Invoice Button */}
           {!isInvoice && !doc.convertedToInvoiceId && (
             <button
+              type="button"
               onClick={() => onConvertToInvoice(doc)}
-              className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 shrink-0 ml-auto"
+              className="px-3 py-2 sm:py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1.5 shrink-0 ml-auto cursor-pointer select-none active:scale-95 touch-manipulation"
             >
               <FileCheck size={14} />
               <span>Convert to Invoice</span>
@@ -222,8 +257,9 @@ export function DocumentDetailModal({
 
           {/* Edit Button */}
           <button
+            type="button"
             onClick={() => onEdit(doc)}
-            className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0"
+            className="px-3 py-2 sm:py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer select-none active:scale-95 touch-manipulation"
           >
             <Edit3 size={14} />
             <span>Edit</span>
@@ -251,11 +287,12 @@ export function DocumentDetailModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => downloadBillPdf(doc, settings)}
-                    className="text-[11px] bg-slate-700 hover:bg-slate-600 text-white font-semibold px-2 py-0.5 rounded transition flex items-center gap-1"
+                    disabled={isSavingPdf}
+                    onClick={handleSavePdf}
+                    className="text-[11px] bg-slate-700 hover:bg-slate-600 text-white font-semibold px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer select-none"
                   >
-                    <Download size={12} />
-                    <span>Download</span>
+                    {isSavingPdf ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                    <span>{isSavingPdf ? 'Saving...' : 'Download'}</span>
                   </button>
                   <button
                     type="button"
@@ -401,6 +438,15 @@ export function DocumentDetailModal({
           </div>
         </div>
       </div>
+
+      {/* WhatsApp Share Modal */}
+      {showWhatsAppModal && (
+        <WhatsAppShareModal
+          document={doc}
+          settings={settings}
+          onClose={() => setShowWhatsAppModal(false)}
+        />
+      )}
     </div>
   );
 }

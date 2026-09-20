@@ -18,6 +18,7 @@ import {
 import { BillDocument, BusinessSettings } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { shareViaWhatsApp } from '../utils/pdfGenerator';
+import { WhatsAppShareModal } from './WhatsAppShareModal';
 
 interface DocumentListViewProps {
   documents: BillDocument[];
@@ -36,6 +37,7 @@ export function DocumentListView({
 }: DocumentListViewProps) {
   const [filterType, setFilterType] = useState<'ALL' | 'QUOTATION' | 'INVOICE' | 'UNPAID'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [shareDoc, setShareDoc] = useState<BillDocument | null>(null);
 
   // Filter documents
   const filtered = documents.filter(doc => {
@@ -231,12 +233,12 @@ export function DocumentListView({
                       type="button"
                       onClick={e => {
                         e.stopPropagation();
-                        shareViaWhatsApp(doc, settings);
+                        setShareDoc(doc);
                       }}
-                      className="p-1 text-slate-400 hover:text-emerald-600 rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition cursor-pointer select-none"
                       title="Share via WhatsApp"
                     >
-                      <Share2 size={15} />
+                      <Share2 size={16} />
                     </button>
 
                     <button
@@ -247,10 +249,10 @@ export function DocumentListView({
                           onDeleteDocument(doc.id);
                         }
                       }}
-                      className="p-1 text-slate-400 hover:text-rose-500 rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition cursor-pointer select-none"
                       title="Delete Record"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
@@ -259,6 +261,15 @@ export function DocumentListView({
           })
         )}
       </div>
+
+      {/* WhatsApp Share Modal */}
+      {shareDoc && (
+        <WhatsAppShareModal
+          document={shareDoc}
+          settings={settings}
+          onClose={() => setShareDoc(null)}
+        />
+      )}
     </div>
   );
 }

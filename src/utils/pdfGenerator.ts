@@ -1,4 +1,7 @@
 import { jsPDF } from 'jspdf';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { BillDocument, BusinessSettings } from '../types';
 import { formatLetterpadDate, formatIndianNumber } from '../components/LetterpadBillView';
 import { getShareableBillUrl } from './shareableLink';
@@ -314,10 +317,59 @@ export function generateBillPdf(doc: BillDocument, settings: BusinessSettings): 
   return pdf;
 }
 
-export function downloadBillPdf(doc: BillDocument, settings: BusinessSettings): void {
-  const pdf = generateBillPdf(doc, settings);
-  const cleanNum = doc.documentNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
-  pdf.save(`${cleanNum}_${doc.documentType.toLowerCase()}.pdf`);
+export async function downloadBillPdf(
+  doc: BillDocument, 
+  settings: BusinessSettings
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const pdf = generateBillPdf(doc, settings);
+    const cleanNum = doc.documentNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `${cleanNum}_${doc.documentType.toLowerCase()}.pdf`;
+
+    if (Capacitor.isNativePlatform()) {
+      const base64Data = pdf.output('datauristring').split(',')[1];
+      const result = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Cache,
+        recursive: true,
+      });
+
+      await Share.share({
+        title: fileName,
+        text: `${doc.documentNumber} - ${doc.customerName || 'Pixel Graphic Bill'}`,
+        url: result.uri,
+        dialogTitle: 'Save PDF to Device or Drive',
+      });
+      return { success: true, message: 'PDF generated successfully' };
+    }
+
+    // Web browser standard download
+    pdf.save(fileName);
+    return { success: true, message: 'PDF downloaded' };
+  } catch (err: any) {
+    console.error('Error in downloadBillPdf:', err);
+    try {
+      const pdf = generateBillPdf(doc, settings);
+      const cleanNum = doc.documentNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const fileName = `${cleanNum}_${doc.documentType.toLowerCase()}.pdf`;
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 1500);
+      return { success: true, message: 'PDF downloaded' };
+    } catch (fallbackErr) {
+      console.error('Fallback download failed:', fallbackErr);
+      return { success: false, message: 'Could not save PDF' };
+    }
+  }
 }
 
 export function getPdfBlobUrl(doc: BillDocument, settings: BusinessSettings): string {
@@ -338,33 +390,106 @@ export function getPdfDataUrl(doc: BillDocument, settings: BusinessSettings): st
   return pdf.output('datauristring');
 }
 
-export function printBillPdf(doc: BillDocument, settings: BusinessSettings): void {
-  const pdf = generateBillPdf(doc, settings);
-  pdf.autoPrint();
-  const blob = pdf.output('blob');
-  const url = URL.createObjectURL(blob);
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.src = url;
-  document.body.appendChild(iframe);
-  iframe.onload = () => {
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    }, 300);
-  };
+export async function printBillPdf(
+  doc: BillDocument, 
+  settings: BusinessSettings
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const pdf = generateBillPdf(doc, settings);
+      const cleanNum = doc.documentNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
+      const fileName = `${cleanNum}_${doc.documentType.toLowerCase()}.pdf`;
+      const base64Data = pdf.output('datauristring').split(',')[1];
+
+      const result = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Cache,
+        recursive: true,
+      });
+
+      await Share.share({
+        title: `Print ${doc.documentNumber}`,
+        text: `Print document ${doc.documentNumber}`,
+        url: result.uri,
+        dialogTitle: 'Select System Printer or PDF Viewer to Print',
+      });
+      return { success: true, message: 'Print sheet opened' };
+    }
+
+    // Web browser: window.print() prints the clean HTML letterpad!
+    if (typeof window !== 'undefined') {
+      window.print();
+      return { success: true, message: 'Print dialog opened' };
+    }
+
+    return { success: false, message: 'Print not supported' };
+  } catch (err: any) {
+    console.error('Error in printBillPdf:', err);
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+    return { success: false, message: 'Could not trigger print' };
+  }
 }
 
-export function shareViaWhatsApp(doc: BillDocument, settings: BusinessSettings): void {
+export async function shareBillPdfFile(
+  doc: BillDocument, 
+  settings: BusinessSettings
+): Promise<boolean> {
+  try {
+    const pdf = generateBillPdf(doc, settings);
+    const cleanNum = doc.documentNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `${cleanNum}_${doc.documentType.toLowerCase()}.pdf`;
+    const isInvoice = doc.documentType === 'INVOICE';
+    const msgSummary = `${isInvoice ? 'Invoice' : 'Quotation'} ${doc.documentNumber} from ${settings.businessName || 'Pixel Graphic'} for Rs. ${formatIndianNumber(doc.grandTotal)}/-`;
+
+    if (Capacitor.isNativePlatform()) {
+      const base64Data = pdf.output('datauristring').split(',')[1];
+      const writeResult = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Cache,
+        recursive: true,
+      });
+
+      await Share.share({
+        title: fileName,
+        text: msgSummary,
+        url: writeResult.uri,
+        dialogTitle: 'Share PDF Document via WhatsApp',
+      });
+      return true;
+    }
+
+    // Web Share API fallback
+    if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share) {
+      const blob = pdf.output('blob');
+      const file = new File([blob], fileName, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: fileName,
+          text: msgSummary,
+          files: [file],
+        });
+        return true;
+      }
+    }
+
+    // Web fallback: download file
+    await downloadBillPdf(doc, settings);
+    return true;
+  } catch (e) {
+    console.error('Error sharing PDF file:', e);
+    return false;
+  }
+}
+
+export function buildWhatsAppMessage(doc: BillDocument, settings: BusinessSettings): string {
   const isInvoice = doc.documentType === 'INVOICE';
   const typeLabel = isInvoice ? 'Tax Invoice' : 'Quotation';
 
-  let msg = `*${settings.businessName}*\n`;
+  let msg = `*${settings.businessName || 'Pixel Graphic'}*\n`;
   msg += `*${typeLabel}: ${doc.documentNumber}*\n`;
   msg += `Date: ${formatLetterpadDate(doc.date)}\n\n`;
   msg += `Dear *${doc.customerName || 'Customer'}*,\n`;
@@ -401,10 +526,65 @@ export function shareViaWhatsApp(doc: BillDocument, settings: BusinessSettings):
     // Ignore
   }
 
-  msg += `*Pixel Graphic* - 286, D.B Road, R.S Puram, Coimbatore - 641 002.\nPh: ${settings.phone}\n`;
+  msg += `*Pixel Graphic* - 286, D.B Road, R.S Puram, Coimbatore - 641 002.\nPh: ${settings.phone || '95 6666 4663'}\n`;
+  return msg;
+}
 
+/**
+ * Opens WhatsApp Contact/Chat picker without specifying a phone number.
+ * This guarantees no "User not on WhatsApp / Send SMS" error occurs!
+ */
+export function shareViaWhatsAppContactPicker(doc: BillDocument, settings: BusinessSettings): void {
+  const msg = buildWhatsAppMessage(doc, settings);
   const encodedMsg = encodeURIComponent(msg);
+
+  // Try whatsapp:// scheme first for mobile devices, then fall back to api.whatsapp.com
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || Capacitor.isNativePlatform();
+  if (isMobile) {
+    window.location.href = `whatsapp://send?text=${encodedMsg}`;
+    setTimeout(() => {
+      window.open(`https://api.whatsapp.com/send?text=${encodedMsg}`, '_blank');
+    }, 700);
+  } else {
+    window.open(`https://api.whatsapp.com/send?text=${encodedMsg}`, '_blank');
+  }
+}
+
+/**
+ * Direct WhatsApp message to a specific phone number.
+ */
+export function shareViaWhatsAppDirect(
+  doc: BillDocument, 
+  settings: BusinessSettings, 
+  mobileNumber: string
+): void {
+  const msg = buildWhatsAppMessage(doc, settings);
+  const encodedMsg = encodeURIComponent(msg);
+  let cleanMobile = (mobileNumber || '').replace(/[^0-9]/g, '');
+  if (cleanMobile.length === 10) {
+    cleanMobile = '91' + cleanMobile;
+  }
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || Capacitor.isNativePlatform();
+  if (isMobile) {
+    window.location.href = `whatsapp://send?phone=${cleanMobile}&text=${encodedMsg}`;
+    setTimeout(() => {
+      window.open(`https://wa.me/${cleanMobile}?text=${encodedMsg}`, '_blank');
+    }, 700);
+  } else {
+    window.open(`https://wa.me/${cleanMobile}?text=${encodedMsg}`, '_blank');
+  }
+}
+
+/**
+ * General shareViaWhatsApp
+ */
+export function shareViaWhatsApp(doc: BillDocument, settings: BusinessSettings): void {
+  // If customer has a valid 10-digit number, use direct; else use contact picker
   const cleanMobile = (doc.customerMobile || '').replace(/[^0-9]/g, '');
-  const waUrl = `https://wa.me/${cleanMobile ? (cleanMobile.length === 10 ? '91' + cleanMobile : cleanMobile) : ''}?text=${encodedMsg}`;
-  window.open(waUrl, '_blank');
+  if (cleanMobile.length >= 10) {
+    shareViaWhatsAppDirect(doc, settings, cleanMobile);
+  } else {
+    shareViaWhatsAppContactPicker(doc, settings);
+  }
 }

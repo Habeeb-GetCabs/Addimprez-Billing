@@ -17,6 +17,7 @@ import {
 import { BillDocument, Customer, BusinessSettings } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { shareViaWhatsApp } from '../utils/pdfGenerator';
+import { WhatsAppShareModal } from './WhatsAppShareModal';
 
 interface DashboardViewProps {
   documents: BillDocument[];
@@ -38,6 +39,7 @@ export function DashboardView({
   onNavigateToTab
 }: DashboardViewProps) {
   const [filterType, setFilterType] = useState<'ALL' | 'INVOICE' | 'QUOTATION'>('ALL');
+  const [shareDoc, setShareDoc] = useState<BillDocument | null>(null);
 
   // Compute metrics
   const todayStr = new Date().toISOString().split('T')[0];
@@ -338,8 +340,9 @@ export function DashboardView({
                       </button>
 
                       <button
-                        onClick={() => shareViaWhatsApp(doc, settings)}
-                        className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 transition"
+                        type="button"
+                        onClick={() => setShareDoc(doc)}
+                        className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer select-none"
                         title="Share on WhatsApp"
                       >
                         <Share2 size={17} />
@@ -363,6 +366,15 @@ export function DashboardView({
           </div>
         )}
       </div>
+
+      {/* WhatsApp Share Modal */}
+      {shareDoc && (
+        <WhatsAppShareModal
+          document={shareDoc}
+          settings={settings}
+          onClose={() => setShareDoc(null)}
+        />
+      )}
     </div>
   );
 }
