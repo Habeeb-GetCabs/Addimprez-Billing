@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { BillDocument, BusinessSettings } from '../types';
 import { formatCurrency, formatDate } from './calculations';
+import { getShareableBillUrl } from './shareableLink';
 
 export function generateBillPdf(doc: BillDocument, settings: BusinessSettings): jsPDF {
   const pdf = new jsPDF({
@@ -331,6 +332,19 @@ export function downloadBillPdf(doc: BillDocument, settings: BusinessSettings): 
   pdf.save(`${cleanNum}_${doc.documentType.toLowerCase()}.pdf`);
 }
 
+export function getPdfBlobUrl(doc: BillDocument, settings: BusinessSettings): string {
+  const pdf = generateBillPdf(doc, settings);
+  const blob = pdf.output('blob');
+  return URL.createObjectURL(blob);
+}
+
+export function openPdfInNewTab(doc: BillDocument, settings: BusinessSettings): void {
+  const pdf = generateBillPdf(doc, settings);
+  const blob = pdf.output('blob');
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
 export function getPdfDataUrl(doc: BillDocument, settings: BusinessSettings): string {
   const pdf = generateBillPdf(doc, settings);
   return pdf.output('datauristring');
@@ -393,6 +407,16 @@ export function shareViaWhatsApp(doc: BillDocument, settings: BusinessSettings):
   msg += `*Grand Total:* *Rs. ${doc.grandTotal}*\n`;
   msg += `*Advance Paid:* Rs. ${doc.advancePaid}\n`;
   msg += `*Balance Due:* *Rs. ${doc.balanceDue}*\n\n`;
+
+  // Online bill viewing link
+  try {
+    const viewUrl = getShareableBillUrl(doc);
+    if (viewUrl) {
+      msg += `📄 *View / Download Bill Online:*\n${viewUrl}\n\n`;
+    }
+  } catch (e) {
+    // Ignore URL errors
+  }
 
   if (settings.upiId) {
     msg += `*UPI Payment ID:* ${settings.upiId}\n`;

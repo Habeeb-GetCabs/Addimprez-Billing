@@ -14,11 +14,16 @@ import {
   Building2,
   Phone,
   Mail,
-  FileText
+  FileText,
+  Link2,
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 import { BillDocument, BusinessSettings, PaymentMethod, PaymentRecord } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
-import { downloadBillPdf, printBillPdf, shareViaWhatsApp, getPdfDataUrl } from '../utils/pdfGenerator';
+import { downloadBillPdf, printBillPdf, shareViaWhatsApp, getPdfBlobUrl, openPdfInNewTab } from '../utils/pdfGenerator';
+import { getShareableBillUrl } from '../utils/shareableLink';
 
 interface DocumentDetailModalProps {
   document: BillDocument;
@@ -43,6 +48,7 @@ export function DocumentDetailModal({
   const [paymentRef, setPaymentRef] = useState('');
   const [showPdfIframe, setShowPdfIframe] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string>('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const isInvoice = doc.documentType === 'INVOICE';
   const isPaid = doc.balanceDue <= 0 && doc.grandTotal > 0;
@@ -66,11 +72,29 @@ export function DocumentDetailModal({
 
   const handlePreviewPdfToggle = () => {
     if (!showPdfIframe) {
-      const url = getPdfDataUrl(doc, settings);
+      const url = getPdfBlobUrl(doc, settings);
       setPdfUrl(url);
       setShowPdfIframe(true);
     } else {
       setShowPdfIframe(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    try {
+      const url = getShareableBillUrl(doc);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          setCopiedLink(true);
+          setTimeout(() => setCopiedLink(false), 2500);
+        }).catch(() => {
+          prompt('Copy this link to view or share the bill:', url);
+        });
+      } else {
+        prompt('Copy this link to view or share the bill:', url);
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -168,6 +192,16 @@ export function DocumentDetailModal({
             <span>WhatsApp Share</span>
           </button>
 
+          {/* Copy Shareable Online Link */}
+          <button
+            onClick={handleCopyLink}
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold border border-slate-300 transition flex items-center gap-1.5 shrink-0"
+            title="Copy online link for customer to view this bill directly"
+          >
+            {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Link2 size={14} />}
+            <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
+          </button>
+
           {/* Convert Quotation -> Invoice Button */}
           {!isInvoice && !doc.convertedToInvoiceId && (
             <button
@@ -194,20 +228,63 @@ export function DocumentDetailModal({
           {/* If PDF Iframe is toggled */}
           {showPdfIframe && pdfUrl && (
             <div className="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-md">
-              <div className="p-2 bg-slate-800 text-white text-[11px] font-bold flex justify-between items-center">
-                <span>PDF Document Render (Offline A4)</span>
-                <button
-                  onClick={() => setShowPdfIframe(false)}
-                  className="text-xs text-slate-300 hover:text-white"
-                >
-                  Close Viewer
-                </button>
+              <div className="p-2.5 bg-slate-800 text-white text-xs font-bold flex justify-between items-center flex-wrap gap-2">
+                <span className="flex items-center gap-1.5">
+                  <FileText size={14} className="text-indigo-400" />
+                  <span>A4 PDF Document</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openPdfInNewTab(doc, settings)}
+                    className="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-2 py-0.5 rounded transition flex items-center gap-1"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Open in New Tab</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadBillPdf(doc, settings)}
+                    className="text-[11px] bg-slate-700 hover:bg-slate-600 text-white font-semibold px-2 py-0.5 rounded transition flex items-center gap-1"
+                  >
+                    <Download size={12} />
+                    <span>Download</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfIframe(false)}
+                    className="text-[11px] text-slate-300 hover:text-white px-1.5 py-0.5"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <iframe
-                src={pdfUrl}
-                className="w-full h-96 border-none"
-                title="PDF Document"
-              />
+              <div className="relative bg-slate-100 min-h-[380px]">
+                <iframe
+                  src={pdfUrl}
+                  className="w-full h-96 border-none"
+                  title="PDF Document"
+                />
+                {/* Fallback footer for mobile browsers that do not render inline PDFs */}
+                <div className="p-2 bg-slate-100 text-[11px] text-slate-500 text-center border-t border-slate-200 flex items-center justify-center gap-2 flex-wrap">
+                  <span>If your browser or phone does not display inline PDFs:</span>
+                  <button
+                    type="button"
+                    onClick={() => openPdfInNewTab(doc, settings)}
+                    className="font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <ExternalLink size={11} /> Open Full PDF
+                  </button>
+                  <span>or</span>
+                  <button
+                    type="button"
+                    onClick={() => downloadBillPdf(doc, settings)}
+                    className="font-bold text-indigo-600 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    <Download size={11} /> Download File
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

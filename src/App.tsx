@@ -34,6 +34,7 @@ import { PriceCatalogAdmin } from './components/PriceCatalogAdmin';
 import { SettingsAndBackup } from './components/SettingsAndBackup';
 import { DocumentDetailModal } from './components/DocumentDetailModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
+import { parseBillFromUrl } from './utils/shareableLink';
 
 export default function App() {
   // Navigation State
@@ -53,6 +54,36 @@ export default function App() {
   // Modals
   const [viewingDoc, setViewingDoc] = useState<BillDocument | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Check URL on mount and on hash changes (e.g. when opening a shared bill link)
+  useEffect(() => {
+    const checkUrlForBill = () => {
+      const bill = parseBillFromUrl(documents);
+      if (bill) {
+        setViewingDoc(bill);
+        // If this bill came from an encoded link on a new device, add it to documents
+        if (!documents.some(d => d.id === bill.id || d.documentNumber === bill.documentNumber)) {
+          saveDocument(bill);
+          setDocuments(loadDocuments());
+        }
+      }
+    };
+
+    checkUrlForBill();
+    window.addEventListener('hashchange', checkUrlForBill);
+    return () => window.removeEventListener('hashchange', checkUrlForBill);
+  }, [documents]);
+
+  const handleCloseViewingDoc = () => {
+    setViewingDoc(null);
+    if (window.location.hash.includes('bill=') || window.location.hash.includes('view=') || window.location.hash.includes('doc=')) {
+      try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch (e) {
+        window.location.hash = '';
+      }
+    }
+  };
 
   // Re-sync helper for data restore
   const reloadAllData = () => {
@@ -287,7 +318,7 @@ export default function App() {
         <DocumentDetailModal
           document={viewingDoc}
           settings={settings}
-          onClose={() => setViewingDoc(null)}
+          onClose={handleCloseViewingDoc}
           onEdit={handleEditDocument}
           onConvertToInvoice={handleConvertToInvoice}
           onUpdatePayment={handleRecordPayment}
